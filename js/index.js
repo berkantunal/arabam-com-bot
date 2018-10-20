@@ -252,6 +252,6 @@ $(function(){
     $(".result-area").html(queries);
   }
 
-  start();
+  $("#start").click(start);
 
 });
