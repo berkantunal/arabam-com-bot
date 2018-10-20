@@ -1,4 +1,10 @@
 $(function(){
+
+  String.prototype.replaceAll = function(search, replacement) {
+    var target = this;
+    return target.replace(new RegExp(search, 'g'), replacement);
+  };
+
   const base = "https://www.arabam.com/";
 
   const slugify = text => {
@@ -61,9 +67,6 @@ $(function(){
     return categories;
   }
 
-  // console.log(_.findIndex(categories, { "brandName": "BMW" }));
-  // console.log(categories);
-
   const getVehicles = async categories => {
 
     let vehicles = {};
@@ -93,7 +96,7 @@ $(function(){
                     link: packageItemLink,
                     category: subIndex,
                     images: {},
-                    spesificProps: {},
+                    specificProps: {},
                     informations: {},
                     equipments: {},
                   };
@@ -103,8 +106,12 @@ $(function(){
               packageItem.title = packageItemPage.find(".meta h1").text();
               packageItem.price = packageItemPage.find(".price-and-contact-wrapper .price").text().replace(" TL","").replace(".", "");
 
+              packageItemPage.find(".small-photo img").each(function(i){
+                packageItem.images[i] = $(this).attr("src");
+              });
+
               packageItemPage.find(".specs-table tbody tr").each(function(){
-                packageItem.spesificProps[slugify($(this).find("td:first-of-type").text())] = {
+                packageItem.specificProps[slugify($(this).find("td:first-of-type").text())] = {
                   title: $(this).find("td:first-of-type").text(),
                   value: $(this).find("td:last-of-type").text()
                 };
@@ -150,6 +157,65 @@ $(function(){
     return vehicles;
   }
 
+  const getDate = () => {
+    let date = new Date(),
+        addZero = (str) => str.toString().length == 1 ? "0" + str : str;
+
+    return date.getFullYear() + "-" +
+           addZero(date.getMonth()) + "-" +
+           addZero(date.getDay()) + " " +
+           addZero(date.getHours()) + ":" +
+           addZero(date.getMinutes()) + ":" +
+           addZero(date.getSeconds());
+  }
+
+  const objectToString = obj => {
+    string = JSON.stringify(obj);
+    string = string.replaceAll('"', "'");
+
+    return string;
+  }
+
+  const createQuery = (categories, vehicles) => {
+
+    let queries = "";
+
+    for (var index in categories) {
+      let category = categories[index],
+          date = getDate();
+
+      queries += 'INSERT INTO `vehicle_category`( `sub`, `slug`, `title`, `updated_at`, `created_at`) VALUES ("","' + index + '","' + category.brandName + '","' + date + '","' + date + '");\r\n';
+
+      for (var subIndex in categories[index]["sub_categories"]) {
+        let subItem = categories[index]["sub_categories"][subIndex],
+            date = getDate();
+
+        queries += 'INSERT INTO `vehicle_category`( `sub`, `slug`, `title`, `updated_at`, `created_at`) VALUES ("' + index + '","' + subIndex + '","' + subItem.modelName + '","' + date + '","' + date + '");\r\n';
+      }
+    }
+
+    let i = 0;
+    for (var index in vehicles) {
+      let vehicle = vehicles[index],
+          date = getDate();
+          images = objectToString(vehicle.images),
+          informations = objectToString(vehicle.informations),
+          equipments = objectToString(vehicle.equipments),
+
+          caseType = vehicle.specificProps["kasa-tipi"].value,
+          tierType = vehicle.specificProps["vites-tipi"].value,
+          fuelType = vehicle.specificProps["yakit-tipi"].value,
+          fuelConsumption = vehicle.specificProps["yakit-tuketimi"].value.replace(" Lt", "").replace(",", "."),
+          horsePower = vehicle.specificProps["motor-gucu"].value,
+          engineCapacity = vehicle.specificProps["motor-hacmi"].value;
+
+      queries += 'INSERT INTO `vehicles` ( `slug`, `title`, `link`, `category`, `images`, `caseType`, `tierType`, `fuelType`, `fuelConsumption`, `horsePower`, `engineCapacity`, `informations`, `equipments`, `price`, `video`, `view`, `updated_at`, `created_at`) VALUES ' +
+                                       ' ("' + index + '","' + vehicle.title + '","' + vehicle.link + '","' + vehicle.category + '","' + images + '","' + caseType + '","' + tierType + '","' + fuelType + '","' + fuelConsumption + '","' + horsePower + '","' + engineCapacity + '","' + informations + '","' + equipments + '","' + vehicle.price + '","",0,"' + date + '","' + date + '");\r\n';
+    }
+
+    return queries;
+  }
+
   const setLoader = (rate, status) => {
     $('.progress-bar').width(rate + "%").html(rate + "%");
 
@@ -181,8 +247,11 @@ $(function(){
 
     setLoader(100, "Tüm işlemler tamamlandı");
 
-    $(".result-area").html(localStorage["vehicles"]);
+    queries = createQuery(categories, vehicles);
+
+    $(".result-area").html(queries);
   }
 
   start();
+
 });
